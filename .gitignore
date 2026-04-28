@@ -1,0 +1,20 @@
+# Seeknal
+profiles.yml
+.env
+.env.backup-*
+target/
+.seeknal/
+*.duckdb
+*.duckdb.wal
+
+# oh-my-claudecode
+.omc/
+
+# Test outputs
+seeknal/tests/outputs/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/

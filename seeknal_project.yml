@@ -1,0 +1,5 @@
+name: seeknal-bpom-rpo-1
+version: 1.0.0
+profile: default
+config-version: 1
+state_backend: file

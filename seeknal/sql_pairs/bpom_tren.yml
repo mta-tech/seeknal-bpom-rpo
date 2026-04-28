@@ -1,0 +1,256 @@
+# SQL pairs for BPOM trend, product category, AMDK, BTP, and skala industri queries
+
+- name: tren_izin_edar_per_tahun
+  prompt: Tren Jumlah Izin Edar pangan olahan per tahun
+  intent: Count distinct NIEs per year across ERBA and ERLA product tables.
+  sql: |
+    SELECT EXTRACT(YEAR FROM tanggal) AS tahun_terbit,
+           COUNT(DISTINCT nomor) AS jumlah_produk
+    FROM (
+      SELECT nomor, tanggal
+      FROM warehouse.public.t_produk_3_erba
+      WHERE tanggal IS NOT NULL
+        AND status IN ('0999','0906','9999')
+        AND jenis_permohonan IN ('301','305')
+      UNION ALL
+      SELECT nomor, tanggal
+      FROM warehouse.public.t_produk_3_rilis_erla
+      WHERE tanggal IS NOT NULL
+        AND status IN ('0099','0999','0906','9999')
+        AND jenis_permohonan IN ('301','304','305')
+    ) AS gabungan
+    GROUP BY EXTRACT(YEAR FROM tanggal)
+    ORDER BY tahun_terbit
+  notes:
+    - ERLA uses additional status '0099' compared to ERBA.
+    - ERLA includes jenis_permohonan '304' in addition to '301' and '305'.
+
+- name: top_10_izin_edar_kategori_pangan
+  prompt: Top 10 jumlah izin edar berdasarkan kategori pangan
+  intent: Top 10 food categories by number of distinct NIEs.
+  sql: |
+    SELECT LEFT(kategori_pangan, 2) AS kp,
+           COUNT(DISTINCT nomor) AS jumlah_produk
+    FROM (
+      SELECT kategori_pangan, nomor
+      FROM warehouse.public.t_produk_3_erba
+      WHERE tanggal IS NOT NULL
+        AND status IN ('0999','0906','9999')
+        AND jenis_permohonan IN ('301','305')
+      UNION ALL
+      SELECT kategori_pangan, nomor
+      FROM warehouse.public.t_produk_3_rilis_erla
+      WHERE tanggal IS NOT NULL
+        AND status IN ('0099','0999','0906','9999')
+        AND jenis_permohonan IN ('301','304','305')
+    ) AS data_produk
+    GROUP BY LEFT(kategori_pangan, 2)
+    ORDER BY jumlah_produk DESC
+    LIMIT 10
+  notes:
+    - PostgreSQL uses LIMIT instead of TOP.
+    - Groups by first 2 characters of kategori_pangan.
+
+- name: tren_izin_edar_tahun_daerah_pabrik
+  prompt: Tren jumlah izin edar berdasarkan tahun dan daerah pabrik
+  intent: Count NIEs grouped by year and factory region.
+  sql: |
+    SELECT EXTRACT(YEAR FROM tanggal) AS tahun_terbit,
+           daerah_pabrik,
+           COUNT(DISTINCT nomor) AS jumlah_produk
+    FROM (
+      SELECT nomor, tanggal, daerah_pabrik
+      FROM warehouse.public.t_produk_3_erba
+      WHERE tanggal IS NOT NULL
+        AND status IN ('0999','0906','9999')
+        AND jenis_permohonan IN ('301','305')
+      UNION ALL
+      SELECT nomor, tanggal, daerah_pabrik
+      FROM warehouse.public.t_produk_3_rilis_erla
+      WHERE tanggal IS NOT NULL
+        AND status IN ('0099','0999','0906','9999')
+        AND jenis_permohonan IN ('301','304','305')
+    ) AS data_produk
+    GROUP BY EXTRACT(YEAR FROM tanggal), daerah_pabrik
+    ORDER BY tahun_terbit, daerah_pabrik
+  notes:
+    - Returns a matrix of year x factory region counts.
+
+- name: produk_berdasarkan_nama_daerah_pabrik
+  prompt: Jumlah produk berdasarkan nama produk dan daerah pabrik
+  intent: Count distinct NIEs grouped by product name and factory region.
+  sql: |
+    SELECT nama, daerah_pabrik, COUNT(DISTINCT nomor) AS jumlah_produk
+    FROM (
+      SELECT nama, daerah_pabrik, nomor
+      FROM warehouse.public.t_produk_3_erba
+      WHERE tanggal IS NOT NULL
+        AND status IN ('0999','0906','9999')
+        AND jenis_permohonan IN ('301','305')
+      UNION ALL
+      SELECT nama, daerah_pabrik, nomor
+      FROM warehouse.public.t_produk_3_rilis_erla
+      WHERE tanggal IS NOT NULL
+        AND status IN ('0099','0999','0906','9999')
+        AND jenis_permohonan IN ('301','304','305')
+    ) AS data_produk
+    GROUP BY nama, daerah_pabrik
+    ORDER BY nama, daerah_pabrik
+  notes:
+    - Can return many rows; consider adding LIMIT for interactive use.
+
+- name: tren_btp_per_tahun
+  prompt: Tren Jumlah Izin Edar produk bahan tambahan pangan per tahun
+  intent: Count distinct BTP NIEs per year across ERBA and ERLA BTP tables.
+  sql: |
+    SELECT EXTRACT(YEAR FROM tanggal) AS tahun_terbit,
+           COUNT(DISTINCT nomor) AS jumlah_produk
+    FROM (
+      SELECT nomor, tanggal
+      FROM warehouse.public.t_btp_3_erba
+      WHERE tanggal IS NOT NULL
+        AND status IN ('0999','0906','9999')
+        AND jenis_permohonan IN ('301','305')
+      UNION ALL
+      SELECT nomor, tanggal
+      FROM warehouse.public.t_btp_3_erla
+      WHERE tanggal IS NOT NULL
+        AND status IN ('0099','0999','0906','9999')
+        AND jenis_permohonan IN ('301','304','305')
+    ) AS data_produk
+    GROUP BY EXTRACT(YEAR FROM tanggal)
+    ORDER BY tahun_terbit
+  notes:
+    - BTP = Bahan Tambahan Pangan (food additives).
+    - Same status/permohonan logic as product tables.
+
+- name: tren_btp_skala_industri
+  prompt: Tren jumlah izin edar produk bahan tambahan pangan berdasarkan skala industri
+  intent: Count BTP NIEs grouped by skala industri name.
+  sql: |
+    SELECT skala_industri_nama,
+           COUNT(DISTINCT nomor) AS jumlah_izin_edar
+    FROM (
+      SELECT ref.skala_industri_id AS skala_industri_nama, main.nomor
+      FROM warehouse.public.t_btp_3_erba main
+      LEFT JOIN warehouse.public.m_trader_rba ref ON main.trader_id = ref.trader_id
+      WHERE main.tanggal IS NOT NULL
+        AND main.status IN ('0999', '0906', '9999')
+        AND main.jenis_permohonan IN ('301', '305')
+      UNION ALL
+      SELECT ref.skala_industri AS skala_industri_nama, main.nomor
+      FROM warehouse.public.t_btp_3_erla main
+      LEFT JOIN warehouse.public.m_trader_rla ref ON main.trader_id = ref.trader_id
+      WHERE main.tanggal IS NOT NULL
+        AND main.status IN ('0099', '0999', '0906', '9999')
+        AND main.jenis_permohonan IN ('301', '304', '305')
+    ) AS gabungan
+    GROUP BY skala_industri_nama
+    ORDER BY skala_industri_nama
+  notes:
+    - m_trader_rba uses column skala_industri_id; m_trader_rla uses skala_industri.
+    - LEFT JOIN preserves BTP records even when trader reference is missing.
+
+- name: jumlah_izin_edar_skala_usaha
+  prompt: Jumlah Izin Edar berdasarkan skala usaha atau skala industri
+  intent: Count product NIEs grouped by skala industri across ERBA and ERLA.
+  sql: |
+    SELECT skala_industri_id,
+           COUNT(DISTINCT nomor) AS jumlah_izin_edar
+    FROM (
+      SELECT ref.skala_industri_id, main.nomor
+      FROM warehouse.public.t_produk_3_erba main
+      LEFT JOIN warehouse.public.m_trader_rba ref ON main.trader_id = ref.trader_id
+      WHERE main.tanggal IS NOT NULL
+        AND main.status IN ('0999', '0906', '9999')
+        AND main.tanggal >= DATE '2018-01-01'
+        AND main.jenis_permohonan IN ('301', '305')
+      UNION ALL
+      SELECT ref.skala_industri AS skala_industri_id, main.nomor
+      FROM warehouse.public.t_produk_3_rilis_erla main
+      LEFT JOIN warehouse.public.m_trader_rla ref ON main.trader_id = ref.trader_id
+      WHERE main.tanggal IS NOT NULL
+        AND main.status IN ('0099', '0999', '0906', '9999')
+        AND main.tanggal >= DATE '2018-01-01'
+        AND main.jenis_permohonan IN ('301', '304', '305')
+    ) AS gabungan
+    GROUP BY skala_industri_id
+    ORDER BY skala_industri_id
+  notes:
+    - Filters tanggal >= 2018-01-01 as per original business rule.
+    - ERBA uses m_trader_rba.skala_industri_id; ERLA uses m_trader_rla.skala_industri.
+
+- name: tren_amdk
+  prompt: Tren Produk Air Minum Dalam Kemasan AMDK
+  intent: Count total AMDK products across ERBA and ERLA.
+  sql: |
+    SELECT SUM(jumlah_produk) AS total_produk
+    FROM (
+      SELECT COUNT(*) AS jumlah_produk
+      FROM warehouse.public.t_produk_3_erba
+      WHERE jenis_pangan = '1401'
+        AND tanggal IS NOT NULL
+        AND status IN ('0999','0906','9999')
+        AND jenis_permohonan IN ('301','305')
+      UNION ALL
+      SELECT COUNT(*) AS jumlah_produk
+      FROM warehouse.public.t_produk_3_rilis_erla
+      WHERE jenis_pangan IN ('651', '652', '655')
+        AND tanggal IS NOT NULL
+        AND status IN ('0099','0999','0906','9999')
+        AND jenis_permohonan IN ('301','304','305')
+    ) AS hitung_amdk
+  notes:
+    - AMDK = Air Minum Dalam Kemasan.
+    - ERBA jenis_pangan '1401'; ERLA jenis_pangan ('651', '652', '655').
+
+- name: tren_amdk_skala_industri
+  prompt: Tren produk Air Minum Dalam Kemasan AMDK berdasarkan skala industri
+  intent: Count AMDK products grouped by skala industri.
+  sql: |
+    SELECT skala_industri, COUNT(*) AS jumlah_produk
+    FROM (
+      SELECT m.skala_industri_id AS skala_industri
+      FROM warehouse.public.t_produk_3_erba t
+      LEFT JOIN warehouse.public.m_trader_rba m ON t.trader_id = m.trader_id
+      WHERE t.jenis_pangan = '1401'
+        AND t.status IN ('0999','0906','9999')
+        AND t.jenis_permohonan IN ('301','305')
+      UNION ALL
+      SELECT m.skala_industri
+      FROM warehouse.public.t_produk_3_rilis_erla t
+      LEFT JOIN warehouse.public.m_trader_rla m ON t.trader_id = m.trader_id
+      WHERE t.jenis_pangan IN ('651', '652', '655')
+        AND t.status IN ('0999','0906','9999')
+        AND t.jenis_permohonan IN ('301','305')
+    ) AS gabungan
+    GROUP BY skala_industri
+    ORDER BY skala_industri
+  notes:
+    - Returns AMDK counts by industrial scale.
+
+- name: tren_garam_beryodium
+  prompt: Tren produk Garam Beryodium pada tahun tertentu
+  intent: Count Garam Beryodium products across ERBA and ERLA.
+  sql: |
+    SELECT kategori_pangan, COUNT(DISTINCT nomor) AS jumlah_produk
+    FROM (
+      SELECT 'ERBA' AS sumber_data, nomor, kategori_pangan
+      FROM warehouse.public.t_produk_3_erba
+      WHERE kategori_pangan = '120101000001'
+        AND tanggal IS NOT NULL
+        AND status IN ('0999','0906','9999')
+        AND jenis_permohonan IN ('301','305')
+      UNION ALL
+      SELECT 'ERLA' AS sumber_data, nomor, kategori_pangan
+      FROM warehouse.public.t_produk_3_rilis_erla
+      WHERE kategori_pangan = '12010103'
+        AND tanggal IS NOT NULL
+        AND status IN ('0099','0999','0906','9999')
+        AND jenis_permohonan IN ('301','304','305')
+    ) AS gabungan
+    GROUP BY kategori_pangan
+    ORDER BY kategori_pangan
+  notes:
+    - ERBA kategori_pangan = '120101000001'; ERLA kategori_pangan = '12010103'.
+    - Add year filter (e.g., AND EXTRACT(YEAR FROM tanggal) = 2024) when a specific year is asked.

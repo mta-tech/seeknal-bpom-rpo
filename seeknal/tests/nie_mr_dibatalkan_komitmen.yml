@@ -1,0 +1,14 @@
+name: jumlah_nie_mr_dibatalkan_komitmen
+prompt: Jumlah izin edar risiko menengah rendah yang telah dibatalkan komitmen
+sql: |
+  SELECT COUNT(DISTINCT nomor) AS jumlah_nie_mr
+  FROM warehouse.public.t_produk_3_erba
+  WHERE kategori_dokumen = '303'
+    AND status IN ('0999','0906','9999')
+    AND jenis_permohonan = '301'
+    AND status_komitmen = '5'
+assertions:
+  answer_contains:
+    - "dibatalkan"
+    - "komitmen"
+  expected_values: true

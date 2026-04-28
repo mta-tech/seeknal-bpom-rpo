@@ -1,0 +1,112 @@
+# SQL pairs for BPOM NIE (Nomor Izin Edar) queries
+# NIE = Nomor Izin Edar, referring to the `nomor` column in product tables.
+# Common user terms: izin edar, NIE, izin terbit.
+# Product data is split across ERBA (domestic) and ERLA (imported) tables.
+
+- name: jumlah_nie_risiko_menengah_rendah
+  prompt: Jumlah Izin Edar Pangan Olahan Risiko Menengah Rendah
+  intent: Count distinct NIE (nomor) for medium-low risk processed food products.
+  sql: |
+    SELECT COUNT(DISTINCT nomor) AS jumlah_nie_mr
+    FROM (
+      SELECT nomor FROM warehouse.public.t_produk_3_erba
+      WHERE kategori_dokumen = '303'
+        AND status IN ('0999','0906','9999')
+        AND jenis_permohonan IN ('301','305')
+      UNION ALL
+      SELECT nomor FROM warehouse.public.t_produk_3_rilis_erla
+      WHERE kategori_dokumen = '303'
+        AND status IN ('0999','0906','9999')
+        AND jenis_permohonan IN ('301','305')
+    ) AS gabungan
+  notes:
+    - Kategori dokumen '303' = Risiko Menengah Rendah (MR).
+    - Status '0999','0906','9999' = approved/valid statuses.
+    - Jenis permohonan '301','305' = new and renewal applications.
+    - Union of ERBA (domestic) and ERLA (imported) tables.
+
+- name: jumlah_nie_risiko_menengah_tinggi
+  prompt: Jumlah Izin Edar Pangan Olahan Risiko Menengah Tinggi
+  intent: Count distinct NIE (nomor) for medium-high risk processed food products.
+  sql: |
+    SELECT COUNT(DISTINCT nomor) AS jumlah_nie_mt
+    FROM (
+      SELECT nomor FROM warehouse.public.t_produk_3_erba
+      WHERE kategori_dokumen = '302'
+        AND status IN ('0999','0906','9999')
+        AND jenis_permohonan IN ('301','305')
+      UNION ALL
+      SELECT nomor FROM warehouse.public.t_produk_3_rilis_erla
+      WHERE kategori_dokumen = '302'
+        AND status IN ('0999','0906','9999')
+        AND jenis_permohonan IN ('301','305')
+    ) AS gabungan
+  notes:
+    - Kategori dokumen '302' = Risiko Menengah Tinggi (MT).
+    - ERLA uses the same status and jenis_permohonan filter logic as ERBA.
+
+- name: jumlah_nie_risiko_tinggi
+  prompt: Jumlah Izin Edar Pangan Olahan Risiko Tinggi
+  intent: Count distinct NIE (nomor) for high risk processed food products.
+  sql: |
+    SELECT COUNT(DISTINCT nomor) AS jumlah_nie_t
+    FROM (
+      SELECT nomor FROM warehouse.public.t_produk_3_erba
+      WHERE kategori_dokumen IN ('301','304')
+        AND status IN ('0999','0906','9999')
+        AND jenis_permohonan IN ('301','305')
+      UNION ALL
+      SELECT nomor FROM warehouse.public.t_produk_3_rilis_erla
+      WHERE kategori_dokumen IN ('301','304')
+        AND status IN ('0999','0906','9999')
+        AND jenis_permohonan IN ('301','305')
+    ) AS gabungan
+  notes:
+    - Kategori dokumen '301' and '304' = Risiko Tinggi (T).
+    - Union across ERBA and ERLA for complete count.
+
+- name: jumlah_nie_mr_disetujui_komitmen
+  prompt: Jumlah izin edar risiko menengah rendah yang telah disetujui komitmen
+  intent: Count MR NIEs approved by commitment (status_komitmen approved).
+  sql: |
+    SELECT COUNT(DISTINCT nomor) AS jumlah_nie_mr
+    FROM warehouse.public.t_produk_3_erba
+    WHERE kategori_dokumen = '303'
+      AND status IN ('0999','0906','9999')
+      AND jenis_permohonan = '301'
+      AND status_komitmen IN ('4','7')
+  notes:
+    - Only t_produk_3_erba has status_komitmen column; ERLA does not track commitment status.
+    - Status komitmen '4' and '7' indicate approved commitment states.
+    - Jenis permohonan '301' = new application.
+
+- name: jumlah_nie_mr_dibatalkan_komitmen
+  prompt: Jumlah izin edar risiko menengah rendah yang telah dibatalkan komitmen
+  intent: Count MR NIEs with cancelled commitment status.
+  sql: |
+    SELECT COUNT(DISTINCT nomor) AS jumlah_nie_mr
+    FROM warehouse.public.t_produk_3_erba
+    WHERE kategori_dokumen = '303'
+      AND status IN ('0999','0906','9999')
+      AND jenis_permohonan = '301'
+      AND status_komitmen = '5'
+  notes:
+    - Only t_produk_3_erba has status_komitmen column.
+    - Status komitmen '5' = cancelled commitment.
+
+- name: jumlah_nie_total
+  prompt: Berapa total jumlah NIE / izin edar
+  intent: Count all valid NIEs across all risk categories.
+  sql: |
+    SELECT COUNT(DISTINCT nomor) AS jumlah_nie_total
+    FROM (
+      SELECT nomor FROM warehouse.public.t_produk_3_erba
+      WHERE status IN ('0999','0906','9999')
+        AND jenis_permohonan IN ('301','305')
+      UNION ALL
+      SELECT nomor FROM warehouse.public.t_produk_3_rilis_erla
+      WHERE status IN ('0999','0906','9999')
+        AND jenis_permohonan IN ('301','305')
+    ) AS gabungan
+  notes:
+    - Aggregates all valid NIEs regardless of risk category.

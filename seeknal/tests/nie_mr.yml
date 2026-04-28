@@ -1,0 +1,20 @@
+name: jumlah_nie_risiko_menengah_rendah
+prompt: Jumlah Izin Edar Pangan Olahan Risiko Menengah Rendah
+sql: |
+  SELECT COUNT(DISTINCT nomor) AS jumlah_nie_mr
+  FROM (
+    SELECT nomor FROM warehouse.public.t_produk_3_erba
+    WHERE kategori_dokumen = '303'
+      AND status IN ('0999','0906','9999')
+      AND jenis_permohonan IN ('301','305')
+    UNION ALL
+    SELECT nomor FROM warehouse.public.t_produk_3_rilis_erla
+    WHERE kategori_dokumen = '303'
+      AND status IN ('0999','0906','9999')
+      AND jenis_permohonan IN ('301','305')
+  ) AS gabungan
+assertions:
+  answer_contains:
+    - "Risiko Menengah Rendah"
+    - "MR"
+  expected_values: true
