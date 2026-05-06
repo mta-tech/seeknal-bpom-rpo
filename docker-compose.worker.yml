@@ -1,0 +1,35 @@
+name: seeknal-bpom-rpo
+
+services:
+  seeknal-worker:
+    # image: ${SEEKNAL_WORKER_IMAGE:-ghcr.io/mta-tech/seeknal-worker:latest}
+    image: asia-southeast2-docker.pkg.dev/arched-jetty-392811/mta-docker/kcenter/seeknal-worker:dev
+    container_name: seeknal-worker-bpom-rpo
+    restart: unless-stopped
+    pull_policy: always
+    working_dir: /app/project
+    env_file:
+      # Project secrets/config used by seeknal_agent.yml, for example WAREHOUSE_URL
+      # and LLM provider API keys. Do not commit this file.
+      - path: .env
+        required: false
+      # HTTP-only worker bootstrap: SEEKNAL_GATEWAY_URL + SEEKNAL_API_TOKEN.
+      # The worker does not connect to Temporal in this mode; gateway/kc-service
+      # owns queue routing and Temporal access.
+      - path: .env.worker
+        required: true
+    environment:
+      SEEKNAL_PROJECT_PATH: /app/project
+      SEEKNAL_WORKER_TRANSPORT: http
+    volumes:
+      - type: bind
+        source: /data/deployment/docker/seeknal-bpom-rpo
+        target: /app/project
+    command: ["--project", "/app/project", "--transport", "http"]
+    networks:
+      - serving_network
+
+networks:
+  serving_network:
+    external: true
+    name: serving_network
