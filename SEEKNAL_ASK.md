@@ -8,8 +8,7 @@ project without hardcoding project logic into Seeknal itself.
 
 This project connects to a BPOM (Badan Pengawas Obat dan Makanan) read-only
 database containing product registration data, including processed food products
-and food additives (BTP). The data is split across domestic (ERBA) and imported
-(ERLA) product tables. Users are BPOM analysts who ask questions about:
+and food additives (BTP). Users are BPOM analysts who ask questions about:
 - Number of issued product licenses (NIE / Izin Edar)
 - Application trends (permohonan)
 - Product categories, factory regions, industrial scale
@@ -19,11 +18,23 @@ and food additives (BTP). The data is split across domestic (ERBA) and imported
 
 ### NIE (Nomor Izin Edar)
 - NIE is the product license number, stored in the `nomor` column.
+- Counts NIE using 'tanggal' coloumn
 - Common user terms: izin edar, NIE, izin terbit.
-- Product data for NIE queries spans `t_produk_3_erba` (domestic) and
-  `t_produk_3_rilis_erla` (imported).
+- Product data for NIE queries spans `t_produk_3_erba` and `t_produk_3_rilis_erla` 
+- Food addictives for NIE queries spans `t_btp_3_erba` and `t_btp_3_erla`
+
+### Data Dictionary
+- Before generating any response, the system must consult the "data_dictionary" table. This ensures all acronyms, terms, and field definitions are interpreted correctly according to the official documentation.
+
+### Permohonan
+- Counts permohonan using 'produk_id' coloumn
+- Common user terms: permohonan, permohonan izin edar, jumlah permohonan, permohonan registrasi, registrasi
+- Counts permohonan using 'tanggal_bayar' coloumn
+- Product data for permohonan queries spans `t_produk_3_erba` and `t_produk_3_rilis_erla` 
+- Food addictives for NIE queries spans `t_btp_3_erba` and `t_btp_3_erla`
 
 ### Risk Categories (Kategori Dokumen)
+- Only tracked in 't_produk_3_erba'
 - `301`, `304` = Risiko Tinggi (T / High Risk)
 - `302` = Risiko Menengah Tinggi (MT / Medium-High Risk)
 - `303` = Risiko Menengah Rendah (MR / Medium-Low Risk)
@@ -62,14 +73,17 @@ and food additives (BTP). The data is split across domestic (ERBA) and imported
 
 ## Data Architecture
 
-- ERBA tables (domestic): `t_produk_3_erba`, `t_btp_3_erba`, `m_trader_rba`
-- ERLA tables (imported): `t_produk_3_rilis_erla`, `t_btp_3_erla`, `m_trader_rla`
+- ERBA tables : `t_produk_3_erba`, `t_btp_3_erba`, `m_trader_rba`
+- ERLA tables : `t_produk_3_rilis_erla`, `t_btp_3_erla`, `m_trader_rla`
 - No `t_produk_3_erla` or unified `t_produk_3` table exists.
 - For queries covering all products, UNION ERBA and ERLA tables.
 - For commitment-related queries, use only ERBA tables.
 
-## Required SQL patterns
 
+
+##
+
+## Required SQL patterns
 Use `seeknal/sql_pairs/*.yml` for reusable prompt-to-SQL examples. Each pair
 should include:
 
@@ -116,3 +130,4 @@ seeknal ask test --project .
 - Prefer SQL pairs and source context before broad table discovery.
 - For unknown or advanced questions, the agent may use `execute_sql`,
   `execute_python`, statistics, and modeling, but conclusions must cite data.
+- 

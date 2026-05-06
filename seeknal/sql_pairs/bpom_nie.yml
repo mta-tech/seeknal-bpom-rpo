@@ -7,60 +7,42 @@
   prompt: Jumlah Izin Edar Pangan Olahan Risiko Menengah Rendah
   intent: Count distinct NIE (nomor) for medium-low risk processed food products.
   sql: |
-    SELECT COUNT(DISTINCT nomor) AS jumlah_nie_mr
-    FROM (
-      SELECT nomor FROM warehouse.public.t_produk_3_erba
-      WHERE kategori_dokumen = '303'
-        AND status IN ('0999','0906','9999')
-        AND jenis_permohonan IN ('301','305')
-      UNION ALL
-      SELECT nomor FROM warehouse.public.t_produk_3_rilis_erla
-      WHERE kategori_dokumen = '303'
-        AND status IN ('0999','0906','9999')
-        AND jenis_permohonan IN ('301','305')
-    ) AS gabungan
+   SELECT 
+    COUNT(DISTINCT "nomor") AS "mr"
+    FROM "mv_produk_gabungan"
+    WHERE "kategori_dokumen" = '303'
+       AND "status" IN ('0999', '0906', '9999')
+       AND "jenis_permohonan" IN ('301', '305')
   notes:
     - Kategori dokumen '303' = Risiko Menengah Rendah (MR).
     - Status '0999','0906','9999' = approved/valid statuses.
     - Jenis permohonan '301','305' = new and renewal applications.
-    - Union of ERBA (domestic) and ERLA (imported) tables.
 
 - name: jumlah_nie_risiko_menengah_tinggi
   prompt: Jumlah Izin Edar Pangan Olahan Risiko Menengah Tinggi
   intent: Count distinct NIE (nomor) for medium-high risk processed food products.
   sql: |
-    SELECT COUNT(DISTINCT nomor) AS jumlah_nie_mt
-    FROM (
-      SELECT nomor FROM warehouse.public.t_produk_3_erba
-      WHERE kategori_dokumen = '302'
-        AND status IN ('0999','0906','9999')
-        AND jenis_permohonan IN ('301','305')
-      UNION ALL
-      SELECT nomor FROM warehouse.public.t_produk_3_rilis_erla
-      WHERE kategori_dokumen = '302'
-        AND status IN ('0999','0906','9999')
-        AND jenis_permohonan IN ('301','305')
-    ) AS gabungan
+    SELECT 
+    COUNT(DISTINCT "nomor") AS "mr"
+    FROM "mv_produk_gabungan"
+    WHERE "kategori_dokumen" = '302'
+       AND "status" IN ('0999', '0906', '9999')
+       AND "jenis_permohonan" IN ('301', '305')
   notes:
     - Kategori dokumen '302' = Risiko Menengah Tinggi (MT).
-    - ERLA uses the same status and jenis_permohonan filter logic as ERBA.
+    - Status '0999','0906','9999' = approved/valid statuses.  
+    - Jenis permohonan '301','305' = new and renewal applications.
 
 - name: jumlah_nie_risiko_tinggi
   prompt: Jumlah Izin Edar Pangan Olahan Risiko Tinggi
   intent: Count distinct NIE (nomor) for high risk processed food products.
   sql: |
-    SELECT COUNT(DISTINCT nomor) AS jumlah_nie_t
-    FROM (
-      SELECT nomor FROM warehouse.public.t_produk_3_erba
-      WHERE kategori_dokumen IN ('301','304')
-        AND status IN ('0999','0906','9999')
-        AND jenis_permohonan IN ('301','305')
-      UNION ALL
-      SELECT nomor FROM warehouse.public.t_produk_3_rilis_erla
-      WHERE kategori_dokumen IN ('301','304')
-        AND status IN ('0999','0906','9999')
-        AND jenis_permohonan IN ('301','305')
-    ) AS gabungan
+    SELECT 
+    COUNT(DISTINCT "nomor") AS "mr"
+    FROM "mv_produk_gabungan"
+    WHERE "kategori_dokumen" IN ('301', '304')
+       AND "status" IN ('0999', '0906', '9999')
+       AND "jenis_permohonan" IN ('301', '305')
   notes:
     - Kategori dokumen '301' and '304' = Risiko Tinggi (T).
     - Union across ERBA and ERLA for complete count.
@@ -108,5 +90,42 @@
       WHERE status IN ('0999','0906','9999')
         AND jenis_permohonan IN ('301','305')
     ) AS gabungan
+  notes:
+    - Aggregates all valid NIEs regardless of risk category.
+
+- name: jumlah_izin_edar
+  prompt: Jumlah Perusahaan yang memiliki Izin Edar berdasarkan skala industri
+  intent: Count all valid NIE across based on industrial scale.
+  sql: |
+    SELECT
+    "SKALA_INDUSTRI_ID",
+    COUNT(DISTINCT "NOMOR") AS "JUMLAH_IZIN_EDAR"
+      FROM (
+        SELECT 
+        "ref"."SKALA_INDUSTRI_ID", 
+        "main"."NOMOR" 
+    FROM warehouse.public.t_produk_3_erba "main"
+    LEFT JOIN warehouse.public.m_trader_rba "ref" 
+        ON "main"."TRADER_ID" = "ref"."TRADER_ID" 
+    WHERE "main"."TANGGAL" IS NOT NULL
+      AND "main"."STATUS" IN ('0999', '0906', '9999')
+      AND "main"."TANGGAL" >= '2018-01-01'
+      AND "main"."JENIS_PERMOHONAN" IN ('301', '305')
+
+    UNION ALL
+
+    SELECT 
+        "ref"."SKALA_INDUSTRI" AS "SKALA_INDUSTRI_ID", 
+        "main"."NOMOR" 
+    FROM "warehouse.public.t_produk_3_rilis_erla" "main"
+    LEFT JOIN "warehouse.public.m_trader_rla" "ref" 
+        ON "main"."TRADER_ID" = "ref"."TRADER_ID"
+    WHERE "main"."TANGGAL" IS NOT NULL
+      AND "main"."STATUS" IN ('0099', '0999', '0906', '9999')
+      AND "main"."TANGGAL" >= '2018-01-01'
+      AND "main"."JENIS_PERMOHONAN" IN ('301', '304', '305')
+        ) AS "GABUNGAN"
+        GROUP BY "SKALA_INDUSTRI_ID"
+        ORDER BY "SKALA_INDUSTRI_ID";
   notes:
     - Aggregates all valid NIEs regardless of risk category.
