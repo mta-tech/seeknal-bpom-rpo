@@ -13,7 +13,6 @@
     WHERE "kategori_dokumen" = '303'
        AND "status" IN ('0999', '0906', '9999')
        AND "jenis_permohonan" IN ('301', '305')
-       AND "source_table" = 'PRODUK_ERBA';
   notes:
     - Kategori dokumen '303' = Risiko Menengah Rendah (MR).
     - Status '0999','0906','9999' = approved/valid statuses.
@@ -29,7 +28,6 @@
     WHERE "kategori_dokumen" = '302'
        AND "status" IN ('0999', '0906', '9999')
        AND "jenis_permohonan" IN ('301', '305')
-       AND "source_table" = 'PRODUK_ERBA';
   notes:
     - Kategori dokumen '302' = Risiko Menengah Tinggi (MT).
     - Status '0999','0906','9999' = approved/valid statuses.  
@@ -45,7 +43,6 @@
     WHERE "kategori_dokumen" IN ('301', '304')
        AND "status" IN ('0999', '0906', '9999')
        AND "jenis_permohonan" IN ('301', '305')
-       AND "source_table" = 'PRODUK_ERBA';
   notes:
     - Kategori dokumen '301' and '304' = Risiko Tinggi (T).
     - Union across ERBA and ERLA for complete count.

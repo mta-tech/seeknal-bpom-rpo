@@ -28,7 +28,8 @@ and food additives (BTP). Users are BPOM analysts who ask questions about:
 
 ### Permohonan
 - Counts permohonan using 'produk_id' coloumn
-- Common user terms: permohonan, permohonan izin
+- Common user terms: permohonan, permohonan izin edar, jumlah permohonan
+- Counts permohonan using 'tanggal_bayar' coloumn
 - Product data for permohonan queries spans `t_produk_3_erba` and `t_produk_3_rilis_erla` 
 - Food addictives for NIE queries spans `t_btp_3_erba` and `t_btp_3_erla`
 
@@ -84,17 +85,8 @@ and food additives (BTP). Users are BPOM analysts who ask questions about:
 - Test Accounts (ERLA): Exclude records where trader_id is 3384.
 - Brand Specificity: Use exact matches for brand names. If multiple similar brands exist, ignore partial matches and focus strictly on the specific brand requested.
 
-## Metric Definitions & Calculations
-- Product license (NIE):
-Count: Use the 'nomor' column.
-Timeline: Use the 'tanggal' column to determine the issuance date.
-
-Applications (Permohonan):
-Count: Use the 'produk_id' column.
-Criteria: Applications are only counted once payment is confirmed. Use the 'tanggal_bayar' column to determine the application date.
-
 ## Industry scale vs status scale
-- Scale vs. Status: "Skala industri" (or "Skala usaha") refers to skala_industri_id or skala_industri. "Status usaha" refers strictly to the 'status_usaha' column. These are not interchangeable.
+- Scale vs. Status: "Skala industri" or "Skala usaha" refers to "skala_industri_id" or "skala_industri". "Status usaha" refers strictly to the 'status_usaha' column. These are not interchangeable.
 - UMKM Classification: Includes records labeled as Mikro, Kecil, and Menengah. Importers: Any record where skala_industri_id or skala_industri is NULL or empty is categorized as an "Importir".
 
 ## Specialized Document
@@ -120,8 +112,15 @@ If the user’s prompt matches exactly with a file name or a specific task defin
 ## UnMatched Regional Code
 If a regional code (kode daerah) does not match any entry in the data_dictionary, display the original code as is. Do not attempt to guess or match it with other regional codes.
 
-## Required SQL patterns
+## NIE Re-Registration
+The re-registration process is carried out 5 years after the marketing authorization (NIE) is issued.
 
+## Default Result Limitation
+If a request does not specify a maximum number of records, the system must limit the output to the top 10 results by default.
+
+
+
+## Required SQL patterns
 Use `seeknal/sql_pairs/*.yml` for reusable prompt-to-SQL examples. Each pair
 should include:
 
