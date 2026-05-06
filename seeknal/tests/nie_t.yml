@@ -7,12 +7,6 @@ sql: |
     WHERE kategori_dokumen IN ('301','304')
       AND status IN ('0999','0906','9999')
       AND jenis_permohonan IN ('301','305')
-    UNION ALL
-    SELECT nomor FROM warehouse.public.t_produk_3_rilis_erla
-    WHERE kategori_dokumen IN ('301','304')
-      AND status IN ('0999','0906','9999')
-      AND jenis_permohonan IN ('301','305')
-  ) AS gabungan
 assertions:
   answer_contains:
     - "Risiko Tinggi"
