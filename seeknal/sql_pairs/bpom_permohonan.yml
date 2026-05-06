@@ -21,8 +21,7 @@
       SELECT produk_id, tanggal_bayar, jenis_permohonan FROM warehouse.public.t_btp_3_erla
     ) AS a
     WHERE jenis_permohonan IN ('301','302','303','304','305')
-      AND tanggal_bayar >= DATE '2025-01-01'
-      AND tanggal_bayar <= DATE '2025-12-31'
+      AND tanggal_bayar IS NOT NULL
     GROUP BY GROUPING SETS (
       (DATE_TRUNC('month', tanggal_bayar)),
       ()
