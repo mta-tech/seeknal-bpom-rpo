@@ -79,7 +79,8 @@ and food additives (BTP). Users are BPOM analysts who ask questions about:
 - For queries covering all products, UNION ERBA and ERLA tables.
 - For commitment-related queries, use only ERBA tables.
 
-
+## Knowledge Base
+- Before providing any responses, you are required to thoroughly read and reference the context provided in the file located at context/bpom_information.md. Use the technical definitions, database schemas, and project constraints defined there as the primary source of truth for all your answers.
 
 ##
 
