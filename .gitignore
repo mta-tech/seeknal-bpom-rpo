@@ -1,6 +1,7 @@
 # Seeknal
 profiles.yml
 .env
+.env.worker
 .env.backup-*
 target/
 .seeknal/
