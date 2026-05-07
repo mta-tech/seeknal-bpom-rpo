@@ -2,8 +2,8 @@ name: seeknal-bpom-rpo
 
 services:
   seeknal-worker:
-    # image: ${SEEKNAL_WORKER_IMAGE:-ghcr.io/mta-tech/seeknal-worker:latest}
-    image: asia-southeast2-docker.pkg.dev/arched-jetty-392811/mta-docker/kcenter/seeknal-worker:dev
+    image: ${SEEKNAL_WORKER_IMAGE:-ghcr.io/mta-tech/seeknal-worker:2.9.1}
+    # image: asia-southeast2-docker.pkg.dev/arched-jetty-392811/mta-docker/kcenter/seeknal-worker:dev
     container_name: seeknal-worker-bpom-rpo
     restart: unless-stopped
     pull_policy: always
