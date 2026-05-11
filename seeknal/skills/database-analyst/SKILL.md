@@ -42,7 +42,12 @@ pipeline creation or durable transformation work.
      `relationships.md`, `columns.md`, or `profiling.md`.
    - Also call `list_sql_pairs` with the same business terms. SQL pairs are
      **authoritative business definitions**, not optional examples.
-   - When a listed SQL pair matches the user's question (by intent or semantic
+   - **IMPORTANT:** `list_sql_pairs` returns a file-level preview (one prompt
+     per file). A single file may contain many pairs. You MUST call
+     `read_sql_pair` for each potentially relevant file to inspect ALL
+     individual pairs inside before deciding there is no match. Never skip
+     this step — the matching pair may be buried inside a multi-pair file.
+   - When a SQL pair matches the user's question (by intent or semantic
      similarity), you MUST call `execute_sql_pair` so the pair's SQL runs
      as-is. Do NOT rewrite, substitute columns, remove filters, or generate
      ad-hoc SQL when a matching pair exists.
