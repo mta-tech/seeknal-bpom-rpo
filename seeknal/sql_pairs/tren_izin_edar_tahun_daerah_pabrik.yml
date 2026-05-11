@@ -1,0 +1,24 @@
+name: tren_izin_edar_tahun_daerah_pabrik
+prompt: Tren jumlah izin edar berdasarkan tahun dan daerah pabrik
+intent: Count NIEs grouped by year and factory region.
+sql: |
+  SELECT EXTRACT(YEAR FROM tanggal) AS tahun_terbit,
+         daerah_pabrik,
+         COUNT(DISTINCT nomor) AS jumlah_produk
+  FROM (
+    SELECT nomor, tanggal, daerah_pabrik
+    FROM warehouse.public.t_produk_3_erba
+    WHERE tanggal IS NOT NULL
+      AND status IN ('0999','0906','9999')
+      AND jenis_permohonan IN ('301','305')
+    UNION ALL
+    SELECT nomor, tanggal, daerah_pabrik
+    FROM warehouse.public.t_produk_3_rilis_erla
+    WHERE tanggal IS NOT NULL
+      AND status IN ('0099','0999','0906','9999')
+      AND jenis_permohonan IN ('301','304','305')
+  ) AS data_produk
+  GROUP BY EXTRACT(YEAR FROM tanggal), daerah_pabrik
+  ORDER BY tahun_terbit, daerah_pabrik
+notes:
+  - Returns a matrix of year x factory region counts.

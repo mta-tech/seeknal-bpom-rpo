@@ -1,0 +1,22 @@
+name: produk_berdasarkan_nama_daerah_pabrik
+prompt: Jumlah produk berdasarkan nama produk dan daerah pabrik
+intent: Count distinct NIEs grouped by product name and factory region.
+sql: |
+  SELECT nama, daerah_pabrik, COUNT(DISTINCT nomor) AS jumlah_produk
+  FROM (
+    SELECT nama, daerah_pabrik, nomor
+    FROM warehouse.public.t_produk_3_erba
+    WHERE tanggal IS NOT NULL
+      AND status IN ('0999','0906','9999')
+      AND jenis_permohonan IN ('301','305')
+    UNION ALL
+    SELECT nama, daerah_pabrik, nomor
+    FROM warehouse.public.t_produk_3_rilis_erla
+    WHERE tanggal IS NOT NULL
+      AND status IN ('0099','0999','0906','9999')
+      AND jenis_permohonan IN ('301','304','305')
+  ) AS data_produk
+  GROUP BY nama, daerah_pabrik
+  ORDER BY nama, daerah_pabrik
+notes:
+  - Can return many rows; consider adding LIMIT for interactive use.
