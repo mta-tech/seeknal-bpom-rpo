@@ -85,21 +85,30 @@ and food additives (BTP). Users are BPOM analysts who ask questions about:
 ##
 
 ## Required SQL patterns
-Use `seeknal/sql_pairs/*.yml` for reusable prompt-to-SQL examples. Each pair
-should include:
 
-```yaml
-name: example_metric
-prompt: Natural-language question users ask
-intent: What business definition this query implements
-sql: |
-  SELECT ...
-notes:
-  - Explain filters, date fields, deduplication keys, and caveats.
-```
+`seeknal/sql_pairs/*.yml` contains authoritative prompt-to-SQL definitions that
+the Ask agent MUST follow. Each pair maps a business question to a verified SQL
+query. When a SQL pair matches the user's question (even partially or by
+semantic similarity), the agent MUST execute the pair's SQL exactly as written.
 
-When a SQL pair directly matches a user question, the Ask agent should execute
-that pair as the authoritative business definition before trying ad-hoc SQL.
+### Rules
+
+1. **Never rewrite a matched SQL pair.** Do not replace columns, add/remove
+   filters, change grouping, or swap table references. Execute the SQL from
+   the pair verbatim.
+2. **Match by intent, not just exact text.** If the user asks "top 10 kategori
+   pangan" or "kategori pangan terbanyak" and a SQL pair covers that topic,
+   treat it as a match and use the pair's SQL.
+3. **Use the pair's column choices.** For example, the pair
+   `top_10_izin_edar_kategori_pangan` uses `kategori_pangan` with
+   `LEFT(kategori_pangan, 2)` — do NOT substitute `nama_kategori` or remove the
+   `LEFT()` grouping.
+4. **Preserve all filters.** SQL pairs include filters like
+   `tanggal IS NOT NULL` and `jenis_permohonan IN (...)` for correct business
+   logic. Do not drop them.
+5. **Only generate ad-hoc SQL when no SQL pair matches.** If the question has
+   no corresponding pair, the agent may write new SQL, but should follow the
+   patterns and conventions established in existing pairs.
 
 ## Source context workflow
 

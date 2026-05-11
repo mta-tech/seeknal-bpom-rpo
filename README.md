@@ -230,6 +230,238 @@ assertions:
 - Product data is split across ERBA (domestic) and ERLA (imported) tables. Queries covering all products must `UNION ALL` both sets.
 - Commitment status (`status_komitmen`) is only tracked in ERBA tables.
 
+## Deployment (Docker Worker)
+
+Worker berjalan sebagai Docker container yang mem-poll gateway (kcenter-v2) untuk menerima pertanyaan, menjalankan SQL terhadap warehouse, dan mengembalikan jawaban.
+
+### Arsitektur
+
+```
+User (Keycenter UI)
+  │
+  ▼
+iba-api-gateway (Spring Cloud Gateway, port 9000)
+  │
+  ▼ route: /kcenter-v2/**
+kcenter-v2 service
+  │
+  ▼ work-stream (HTTP long-polling)
+seeknal-worker (Docker container)
+  │
+  ▼ read-only SQL
+PostgreSQL (warehouse BPOM)
+```
+
+### Prasyarat
+
+- Docker + Docker Compose
+- Akses ke jaringan tempat gateway berjalan (`serving_network`)
+- Database PostgreSQL BPOM sudah terisi
+- LLM API key (Google / OpenAI)
+
+### Langkah Deploy
+
+#### 1. Clone repo ke server
+
+```bash
+cd /data/deployment/docker
+git clone <repo-url> seeknal-bpom-rpo
+cd seeknal-bpom-rpo
+```
+
+#### 2. Buat file secrets
+
+**`.env`** — koneksi database dan LLM:
+
+```bash
+cp .env.example .env
+```
+
+Isi dengan:
+
+```bash
+WAREHOUSE_URL=postgresql://<user>:<password>@<db_host>:<port>/<database>?sslmode=disable
+GOOGLE_API_KEY=<your-google-api-key>
+```
+
+> Jika DB mendukung SSL, gunakan `sslmode=require`. Jika tidak, gunakan `sslmode=disable`.
+
+**`.env.worker`** — koneksi ke gateway:
+
+```bash
+cp .env.worker.example .env.worker   # atau buat manual
+```
+
+Isi dengan:
+
+```bash
+SEEKNAL_WORKER_IMAGE=ghcr.io/mta-tech/seeknal-worker:2.9.1
+SEEKNAL_GATEWAY_URL=http://iba-api-gateway:9000/kcenter-v2
+# Atau jika worker di server berbeda:
+# SEEKNAL_GATEWAY_URL=https://alpha.keycenter.ai/_api/kcenter-v2/services/kcenter/v6
+SEEKNAL_API_TOKEN=<token-dari-kcenter>
+SEEKNAL_WORKER_TRANSPORT=http
+SEEKNAL_WORKER_TASK_QUEUE=seeknal-ask
+```
+
+> - Jika worker dan gateway di **server yang sama** dan dalam satu Docker network, gunakan internal URL (`http://iba-api-gateway:9000/kcenter-v2`).
+> - Jika worker di **server berbeda**, gunakan public URL (`https://alpha.keycenter.ai/...`).
+
+#### 3. Pastikan Docker network ada
+
+```bash
+docker network inspect serving_network
+```
+
+Jika belum ada:
+
+```bash
+docker network create serving_network
+```
+
+#### 4. Sync source context
+
+```bash
+docker run --rm \
+  --env-file .env \
+  -v $(pwd):/app/project \
+  ghcr.io/mta-tech/seeknal-worker:2.9.1 \
+  seeknal source sync warehouse --project /app/project
+```
+
+Ini menghasilkan file di `.seeknal/context/sources/warehouse/` yang berisi schema database. Langkah ini hanya perlu diulang jika schema database berubah.
+
+#### 5. Start worker
+
+```bash
+docker compose -f docker-compose.worker.yml up -d
+```
+
+#### 6. Verifikasi
+
+```bash
+# Cek container running
+docker ps | grep seeknal-worker
+
+# Cek logs
+docker logs -f seeknal-worker-bpom-rpo
+
+# Cek DB connection
+docker exec seeknal-worker-bpom-rpo python -c \
+  "import os, psycopg2; conn = psycopg2.connect(os.environ['WAREHOUSE_URL']); print('DB OK')"
+
+# Cek env vars
+docker exec seeknal-worker-bpom-rpo printenv WAREHOUSE_URL
+docker exec seeknal-worker-bpom-rpo printenv GOOGLE_API_KEY
+
+# Cek project files ter-mount
+docker exec seeknal-worker-bpom-rpo ls /app/project/seeknal/sql_pairs/
+```
+
+### Update / Redeploy
+
+```bash
+cd /data/deployment/docker/seeknal-bpom-rpo
+git pull
+docker compose -f docker-compose.worker.yml pull
+docker compose -f docker-compose.worker.yml up -d --force-recreate
+```
+
+Jika schema database berubah, ulangi step 4 (sync source context).
+
+### Resync source context setelah schema berubah
+
+```bash
+docker exec seeknal-worker-bpom-rpo \
+  seeknal source sync warehouse --project /app/project
+```
+
+### Troubleshooting
+
+| Masalah | Penyebab | Solusi |
+|---------|----------|--------|
+| `502 Bad Gateway` | kcenter-v2 service down | Cek status upstream service di gateway |
+| `sslmode=require` error | DB tidak support SSL | Ganti `sslmode=disable` di `WAREHOUSE_URL` |
+| Agent bilang "belum ada data" | Project files tidak ter-mount | Cek volume mount, pastikan `seeknal/` dan `SEEKNAL_ASK.md` ada di `/app/project/` |
+| Agent bilang "belum ada data" | Source context belum sync | Jalankan `seeknal source sync warehouse` |
+| Container tidak re-read `.env` setelah edit | `docker restart` tidak re-read env | Gunakan `docker compose up -d --force-recreate` |
+| Worker tidak terima work | Task queue salah | Pastikan `SEEKNAL_WORKER_TASK_QUEUE` sesuai routing di gateway |
+
+### Multi-Org Deployment
+
+Jika 2 org ID mengakses database dan konteks yang sama, cukup **1 worker**. Jika ingin isolasi per org:
+
+```yaml
+services:
+  seeknal-worker-org1:
+    image: ghcr.io/mta-tech/seeknal-worker:2.9.1
+    container_name: seeknal-worker-org1
+    env_file: .env.worker.org1
+    environment:
+      SEEKNAL_PROJECT_PATH: /app/project
+      SEEKNAL_WORKER_TRANSPORT: http
+    volumes:
+      - /data/deployment/docker/seeknal-bpom-rpo:/app/project:ro
+    networks:
+      - serving_network
+
+  seeknal-worker-org2:
+    image: ghcr.io/mta-tech/seeknal-worker:2.9.1
+    container_name: seeknal-worker-org2
+    env_file: .env.worker.org2
+    environment:
+      SEEKNAL_PROJECT_PATH: /app/project
+      SEEKNAL_WORKER_TRANSPORT: http
+    volumes:
+      - /data/deployment/docker/seeknal-bpom-rpo:/app/project:ro
+    networks:
+      - serving_network
+
+networks:
+  serving_network:
+    external: true
+```
+
+Buat `.env.worker.org1` dan `.env.worker.org2` dengan `SEEKNAL_API_TOKEN` dan/atau `SEEKNAL_WORKER_TASK_QUEUE` yang berbeda sesuai routing per org.
+
+### Gateway Config (iba-api-gateway)
+
+Pastikan route berikut ada di Spring Cloud Gateway:
+
+```yaml
+- id: kcenter-v2
+  uri: ${KCENTER_V2_SERVICE_URL}
+  predicates:
+    - Path=/kcenter-v2/**
+  filters:
+    - RewritePath=/kcenter-v2/(?<segment>.*), /$\{segment}
+```
+
+Dan endpoint worker di-whitelist di `service.open.authentication`:
+
+```yaml
+service:
+  open:
+    authentication:
+      - /kcenter-v2/v6/internal/worker/work-stream
+      - /kcenter-v2/services/kcenter/v6/internal/worker/work-stream
+```
+
+> `KCENTER_V2_SERVICE_URL` **wajib** di-set (tidak ada default value). Jika tidak, gateway akan return 502.
+
+### Database: Buat Read-Only User
+
+```sql
+CREATE USER seeknal_reader WITH PASSWORD '<password>';
+GRANT CONNECT ON DATABASE rpo_v2 TO seeknal_reader;
+GRANT USAGE ON SCHEMA public TO seeknal_reader;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO seeknal_reader;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT SELECT ON TABLES TO seeknal_reader;
+```
+
+Gunakan user ini di `WAREHOUSE_URL`.
+
 ## License
 
 Proprietary — Badan Pengawas Obat dan Makanan (BPOM)

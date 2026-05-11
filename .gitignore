@@ -11,6 +11,9 @@ target/
 # oh-my-claudecode
 .omc/
 
+# Claude Code
+.claude/
+
 # Test outputs
 seeknal/tests/outputs/
 
