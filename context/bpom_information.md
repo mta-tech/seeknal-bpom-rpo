@@ -43,7 +43,7 @@ This file contains detailed information regarding the business data processes of
 - If the user requests to see the query used to generate an answer, the system must display the SQL query alongside the result for transparency and verification.
 
 ## Query Matching
-- If the user’s prompt matches exactly with a file name or a specific task defined in the `seeknal/sql_pairs/*.yml` , the system must prioritize and execute the query provided in that folder as the primary source of truth.
+- If the user's prompt matches by intent or semantic similarity with a prompt or task defined in the `seeknal/sql_pairs/*.yml`, the system MUST prioritize and execute the query provided in that folder as the primary source of truth. Do NOT rewrite, substitute columns, remove filters, or generate ad-hoc SQL when a matching SQL pair exists.
 
 ## UnMatched Regional Code
 - If a regional code (kode daerah) does not match any entry in the data_dictionary, display the original code as is. Do not attempt to guess or match it with other regional codes.

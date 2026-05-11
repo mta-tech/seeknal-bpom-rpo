@@ -40,11 +40,12 @@ pipeline creation or durable transformation work.
      when it exists: call `list_source_context` with a query derived from the
      user's business terms and read the relevant `SOURCE.md`,
      `relationships.md`, `columns.md`, or `profiling.md`.
-   - Also call `list_sql_pairs` with the same business terms; project-owned
-     SQL pairs are reusable examples, not harness hardcoding.
-   - When a listed SQL pair directly matches the user's question, prefer
-     `execute_sql_pair` so the pair's SQL runs as-is. Use `read_sql_pair` first
-     only when you need to inspect the pair notes.
+   - Also call `list_sql_pairs` with the same business terms. SQL pairs are
+     **authoritative business definitions**, not optional examples.
+   - When a listed SQL pair matches the user's question (by intent or semantic
+     similarity), you MUST call `execute_sql_pair` so the pair's SQL runs
+     as-is. Do NOT rewrite, substitute columns, remove filters, or generate
+     ad-hoc SQL when a matching pair exists.
    - For QA/failure investigation, call `list_ask_tests` or
      `read_ask_test_result` before proposing fixes.
    - Call `list_tables` when generated context is absent, too broad, or needs
@@ -59,8 +60,9 @@ pipeline creation or durable transformation work.
      `describe_table` confirms the column exists.
 
 3. **Query**
-   - Call `execute_sql_pair` for a directly matching SQL pair; otherwise call
-     `execute_sql` with the canonical argument `sql`.
+   - Call `execute_sql_pair` for a directly matching SQL pair — this is MANDATORY,
+     not optional. Only call `execute_sql` with ad-hoc SQL when no SQL pair
+     matches the user's question.
    - Correct form: `execute_sql(sql="SELECT ...")`.
    - `query` may be accepted as an alias, but prefer `sql` so tool calls are portable across providers.
    - DuckDB case-insensitive match syntax is `column ILIKE '%term%'`, not

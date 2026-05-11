@@ -18,6 +18,9 @@ the opportunities?", "which segment should we prioritize?", or "what changed?".
 
 2. **Get evidence**
    - If the data lives in a connected database, load `database-analyst` and use `list_tables`/`describe_table`/`execute_sql`.
+   - Before writing ad-hoc SQL, always call `list_sql_pairs` to check if an authoritative SQL pair already exists for the question.
+   - When a SQL pair matches the user's question (by intent or semantic similarity), you MUST call `execute_sql_pair` to run the pair's SQL as-is. Do NOT rewrite or substitute columns from the pair.
+   - Only fall back to `execute_sql` when no matching SQL pair exists.
    - Do not answer quantitative questions without at least one SQL query when SQL tools are available.
 
 3. **Validate**

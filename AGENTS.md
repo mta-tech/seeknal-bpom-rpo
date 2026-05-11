@@ -65,13 +65,14 @@ source should answer each business question.
 
 ## SQL pairs vs Ask tests
 
-- `seeknal/sql_pairs/*.yml` are human-curated prompt-to-SQL examples for
-  agent context. They help the Ask agent choose good SQL patterns during
-  normal chat.
+- `seeknal/sql_pairs/*.yml` are **authoritative prompt-to-SQL definitions**.
+  When a SQL pair matches a user's question (by intent or semantic similarity),
+  the agent MUST execute the pair's SQL as-is — do not rewrite, substitute
+  columns, remove filters, or generate ad-hoc SQL.
 - `context/sql_pairs/*.yml` are agent/user-taught SQL examples saved from chat.
 - `seeknal/tests/*.yml` are executable Ask SQL QA oracles. Run them with
   `seeknal ask test --project .` or `seeknal ask test --project . --sql-only`.
-- A SQL pair teaches the agent; an Ask test protects behavior from regression.
+- A SQL pair is the source of truth; an Ask test protects behavior from regression.
   It is fine for the same business question to exist in both places.
 
 ## How to encode SME notes
