@@ -4,7 +4,7 @@ intent: Count distinct NIE (nomor) for high risk processed food products.
 sql: |
   SELECT
   COUNT(DISTINCT "nomor") AS "mr"
-  FROM "t_produk_3_erba"
+  FROM warehouse.public.t_produk_3_erba
   WHERE "kategori_dokumen" IN ('301', '304')
      AND "status" IN ('0999', '0906', '9999')
      AND "jenis_permohonan" IN ('301', '305')
