@@ -51,6 +51,10 @@ and food additives (BTP). Users are BPOM analysts who ask questions about:
   - `JENIS_PERMOHONAN` → 301=Baru, 302=Perubahan Mayor, 303=Perubahan Minor, 304=Daftar Ulang, 305=Baru Notifikasi
   - `KATEGORI_DOKUMEN` → 301=Tinggi, 302=Menengah Tinggi, 303=Menengah Rendah, 304=Tinggi
 - For NULL or empty skala_industri values, label as **Importir**.
+- **Regional code format mismatch**: Product tables store regional codes as
+  integers (e.g. `7271`) but `data_dictionary.kode` uses decimal format
+  (e.g. `72.71`). When joining regional codes to data_dictionary, always
+  convert: `dd.kode = (daerah_pabrik::numeric / 100)::text`.
 
 ### Permohonan
 - Counts permohonan using 'produk_id' coloumn
