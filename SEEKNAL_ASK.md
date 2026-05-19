@@ -23,8 +23,34 @@ and food additives (BTP). Users are BPOM analysts who ask questions about:
 - Product data for NIE queries spans `t_produk_3_erba` and `t_produk_3_rilis_erla` 
 - Food addictives for NIE queries spans `t_btp_3_erba` and `t_btp_3_erla`
 
-### Data Dictionary
-- Before generating any response, the system must consult the "data_dictionary" table. This ensures all acronyms, terms, and field definitions are interpreted correctly according to the official documentation.
+### Data Dictionary (MANDATORY)
+- The `data_dictionary` table at `warehouse.public.data_dictionary` is the
+  authoritative source for resolving all codes to human-readable labels.
+- **Before presenting any response containing numeric or coded values, the agent
+  MUST resolve them via data_dictionary.** Never show raw codes (e.g. skala
+  industri '1', '2', '3') without their labels.
+- Table structure:
+  - `sumber` — source scope (e.g. 'ERBA dan ERLA')
+  - `kategori` — category name (e.g. 'SKALA_INDUSTRI dan SKALA_INDUSTRI_ID',
+    'JENIS_PERMOHONAN', 'KATEGORI_DOKUMEN')
+  - `kode` — the code value (e.g. '1')
+  - `deskripsi` — the human-readable label (e.g. 'Mikro')
+- Resolution workflow:
+  1. If a SQL pair already includes a JOIN to data_dictionary, use its labels
+     directly (no extra query needed).
+  2. If a SQL pair or ad-hoc query returns coded values, execute a follow-up
+     query to resolve:
+     ```sql
+     SELECT kode, deskripsi
+     FROM warehouse.public.data_dictionary
+     WHERE kategori = '<relevant_category>'
+     ```
+  3. Replace all codes in the final answer with their `deskripsi` labels.
+- Known categories that always need resolution:
+  - `SKALA_INDUSTRI dan SKALA_INDUSTRI_ID` → 1=Mikro, 2=Kecil, 3=Menengah, 4=Besar
+  - `JENIS_PERMOHONAN` → 301=Baru, 302=Perubahan Mayor, 303=Perubahan Minor, 304=Daftar Ulang, 305=Baru Notifikasi
+  - `KATEGORI_DOKUMEN` → 301=Tinggi, 302=Menengah Tinggi, 303=Menengah Rendah, 304=Tinggi
+- For NULL or empty skala_industri values, label as **Importir**.
 
 ### Permohonan
 - Counts permohonan using 'produk_id' coloumn
