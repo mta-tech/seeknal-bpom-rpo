@@ -1,0 +1,17 @@
+name: data_dictionary_lookup
+prompt: Lookup data dictionary definitions for acronyms terms or field codes
+intent: >
+  Query the data_dictionary table to resolve acronyms, field definitions,
+  regional codes (kode daerah), status codes, and business terms. The agent
+  MUST consult this table before generating any response that involves
+  code interpretation or term definition.
+sql: |
+  SELECT *
+  FROM warehouse.public.data_dictionary
+  LIMIT 100
+notes:
+  - This is a reference lookup pair. Adjust LIMIT or add WHERE filters as needed.
+  - Use this as the starting point to discover the table structure (column names).
+  - For regional code lookups, filter by the appropriate column (e.g. kode, category).
+  - If a regional code does not match any entry, display the original code as-is.
+  - Do NOT guess or match codes with other entries when no match is found.
