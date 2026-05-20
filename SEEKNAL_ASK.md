@@ -325,6 +325,13 @@ semantically. These are **single-query questions** — no schema probing needed.
 - **Default result limit**: If the user does not specify a maximum, limit output to top 10 results.
 - **Always present actual data**: When a query returns results, present the actual data rows to the user. Do NOT just describe the result metadata (e.g. "Baris: 100", "Kolom: X, Y, Z"). Show the data in a readable table format. If there are many rows, show the top results and mention the total count.
 - **Brand specificity**: Use exact matches for brand names. Ignore partial matches; focus on the specific brand requested.
+- **No "kendala teknis" responses**: If a SQL query fails, this is a normal development issue.
+    Fix the query and retry. NEVER use "kendala teknis", "masalah eksekusi",
+    "I cannot access data", or similar phrases as an excuse to not show data.
+    The only acceptable response to a data question is actual data in a table.
+- **No describing query steps**: NEVER respond to a data question by listing
+    "langkah-langkah yang akan diambil" (steps that would be taken). If you
+    know the steps, EXECUTE them — do not describe them.
 
 ## Required SQL patterns
 
@@ -379,6 +386,55 @@ semantic similarity), the agent MUST execute the pair's SQL exactly as written.
    message — do NOT fall back to describing the data from memory.
    **Every data question MUST produce actual query results.** A response that
    only lists category names or code descriptions without numbers is WRONG.
+10. **NEVER give up after a SQL error — fix and retry.** If a query fails with
+    a Binder Error, syntax error, type error, or any other SQL error, you MUST:
+    - Read the error message carefully
+    - Fix the SQL (fix column names, cast types, add missing quotes, etc.)
+    - Re-execute the corrected query
+    - Repeat up to 3 times
+    NEVER respond with "kendala teknis" or "masalah eksekusi" and then describe
+    what the query would look like. A SQL error is a fixable problem, not a
+    reason to give up.
+11. **Ad-hoc query building blocks.** When no SQL pair matches, build queries
+    using these composable patterns:
+    - **Base product query (ERBA+ERLA):**
+      ```sql
+      SELECT ... FROM (
+        SELECT ... FROM warehouse.public.t_produk_3_erba
+        WHERE tanggal IS NOT NULL AND status IN ('0999','0906','9999')
+          AND jenis_permohonan IN ('301','305')
+        UNION ALL
+        SELECT ... FROM warehouse.public.t_produk_3_rilis_erla
+        WHERE tanggal IS NOT NULL AND status IN ('0099','0999','0906','9999')
+          AND jenis_permohonan IN ('301','304','305')
+      ) AS p
+      ```
+    - **Trader/skala JOIN:**
+      ```sql
+      LEFT JOIN (
+        SELECT trader_id, skala_industri_id AS skala FROM warehouse.public.m_trader_rba
+        UNION ALL
+        SELECT trader_id, skala_industri AS skala FROM warehouse.public.m_trader_rla
+      ) AS t ON p.trader_id = t.trader_id
+      ```
+    - **KP category resolution:**
+      ```sql
+      LEFT JOIN warehouse.public.data_dictionary dd
+        ON dd.kategori = 'AKRONIM' AND dd.kode = 'KP ' || LEFT(p.kategori_pangan, 2)
+      ```
+    - **Skala industri resolution:**
+      ```sql
+      LEFT JOIN warehouse.public.data_dictionary dd
+        ON dd.kategori = 'SKALA_INDUSTRI dan SKALA_INDUSTRI_ID'
+        AND dd.kode = TRIM(COALESCE(t.skala::text, ''))
+      ```
+    - **Risk category resolution:**
+      ```sql
+      LEFT JOIN warehouse.public.data_dictionary dd
+        ON dd.kategori = 'KATEGORI_DOKUMEN' AND dd.kode = p.kategori_dokumen
+      ```
+    Combine these blocks to answer multi-dimensional questions. Execute the
+    composed query directly — do NOT describe it.
 
 ## Source context workflow
 
