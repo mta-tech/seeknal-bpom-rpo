@@ -66,9 +66,11 @@ data_dictionary and replace codes with labels BEFORE presenting the answer.
 | `jumlah_permohonan_per_jenis` | `jenis_permohonan` (301-305) | `JENIS_PERMOHONAN` | — |
 | `tren_izin_edar_tahun_daerah_pabrik` | `daerah_pabrik` (text codes) | `DAERAH_TRADER, DAERAH_PABRIK, DAERAH_PRODUSEN, PROVINSI_ID, KOTAKAB_ID` | Convert: `ROUND(daerah_pabrik::numeric / 100, 2)::text` |
 | `produk_berdasarkan_nama_daerah_pabrik` | `daerah_pabrik` (text codes) | `DAERAH_TRADER, DAERAH_PABRIK, DAERAH_PRODUSEN, PROVINSI_ID, KOTAKAB_ID` | Convert: `ROUND(daerah_pabrik::numeric / 100, 2)::text` |
+| `top_10_izin_edar_kategori_pangan` | `kp` (2-digit codes) | `AKRONIM` | Join: `kode = 'KP ' || kp` |
 
 **SQL pairs that already resolve internally (no follow-up needed):**
 - `tren_amdk_skala_industri` — already JOINs data_dictionary
+- `top_10_izin_edar_kategori_pangan` — already JOINs data_dictionary (AKRONIM)
 
 **Follow-up query template:**
 ```sql
@@ -140,12 +142,22 @@ using the corresponding kategori.
   Columns: `status_usaha`
 - `SUB_KEMASAN_ID` → 37 sub-packaging codes (e.g. 101=Kaca, 201=PET, 301=Kertas)
   Columns: `sub_kemasan_id`
+- `AKRONIM` → 72 abbreviation/code entries including KP 01–KP 16 (food categories),
+  NIE, BTP, BPOM, SNI, CPPB, etc.
+  Columns: `kategori_pangan` (as `'KP ' || LEFT(kategori_pangan, 2)`)
 
-**Columns that do NOT have data_dictionary resolution:**
-- `kategori_pangan` → 2-digit broad category codes (e.g. '01', '02', '14'). There is no
-  data_dictionary category for these. The `nama_kategori` column exists in product tables
-  but contains sub-category names (specific products), not broad category labels.
-  **Show these codes as-is.** Do NOT attempt data_dictionary lookup for kategori_pangan.
+**Columns resolved via AKRONIM category in data_dictionary:**
+- `kategori_pangan` → 2-digit broad category codes (e.g. '14'). Resolved via
+  `data_dictionary` with `kategori = 'AKRONIM'` and `kode = 'KP ' || LEFT(kategori_pangan, 2)`.
+  Examples: KP 14=Minuman, KP 07=Produk Bakeri, KP 06=Sereal.
+  For SQL, use:
+  ```sql
+  LEFT JOIN warehouse.public.data_dictionary dd
+    ON dd.kategori = 'AKRONIM'
+    AND dd.kode = 'KP ' || LEFT(kategori_pangan, 2)
+  ```
+  The `AKRONIM` category also contains other abbreviations (NIE, BTP, BPOM, etc.)
+  that can be used to explain terms to users.
 
 #### Fallback resolution for unmapped coded values
 
@@ -210,6 +222,8 @@ Common question-term to kategori mapping:
 | daerah, kabupaten, kota, provinsi | `DAERAH_TRADER, DAERAH_PABRIK, DAERAH_PRODUSEN, PROVINSI_ID, KOTAKAB_ID` |
 | KBLI, kode KBLI | `KODE_KBLI` |
 | jenis dokumen | `JENIS_DOKUMEN` |
+| kategori pangan, KP, kategori produk | `AKRONIM` (filter: `WHERE kode LIKE 'KP %'`) |
+| akronim, singkatan, istilah | `AKRONIM` |
 | semua kategori, daftar kategori | Run `SELECT DISTINCT kategori FROM warehouse.public.data_dictionary ORDER BY kategori` |
 
 If the user's term is not listed above, match it to the closest kategori name
@@ -354,6 +368,17 @@ semantic similarity), the agent MUST execute the pair's SQL exactly as written.
    - Step 2: Run a separate data_dictionary lookup for any coded columns.
    - Step 3: Present the resolved results.
    Do NOT try to build a single massive query that does everything at once.
+9. **Execute SQL pairs as the FIRST action — no exceptions.** When a user asks
+   a data question, the very first thing you MUST do is check if a SQL pair
+   matches. If it does, execute that pair's SQL immediately. Do NOT:
+   - Describe the categories or values from memory (e.g. "1: Mikro, 2: Kecil...")
+   - List column names or table structures
+   - Say "I cannot access data" or "kendala teknis"
+   - Explain what the query would look like
+   If execution fails, retry once. If it still fails, report the exact error
+   message — do NOT fall back to describing the data from memory.
+   **Every data question MUST produce actual query results.** A response that
+   only lists category names or code descriptions without numbers is WRONG.
 
 ## Source context workflow
 
