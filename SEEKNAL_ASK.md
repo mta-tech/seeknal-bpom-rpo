@@ -16,11 +16,27 @@ and food additives (BTP). Users are BPOM analysts who ask questions about:
 
 ## Vocabulary and business definitions
 
+### NIE vs Permohonan — CRITICAL DISTINCTION
+
+These are DIFFERENT metrics with DIFFERENT queries. Do NOT confuse them.
+
+| | **Izin Edar / NIE** | **Permohonan** |
+|---|---|---|
+| What it counts | Issued licenses (NIE) | Applications submitted |
+| Count column | `COUNT(DISTINCT nomor)` | `COUNT(DISTINCT produk_id)` |
+| Date column | `tanggal` (issue date) | `tanggal_bayar` (payment date) |
+| User terms | "izin edar", "NIE", "izin terbit", "jumlah izin edar" | "permohonan", "permohonan izin edar", "jumlah permohonan", "registrasi" |
+| Key filter | `tanggal IS NOT NULL`, status approved | `tanggal_bayar IS NOT NULL` |
+| SQL pairs | `jumlah_nie_*`, `tren_izin_edar_*`, `top_10_*` | `jumlah_permohonan_*` |
+| Tables | `t_produk_3_erba`, `t_produk_3_rilis_erla`, `t_btp_3_erba`, `t_btp_3_erla` | Same 4 tables |
+
+**Routing rule**: If the user's question contains "permohonan" or "registrasi" or "pengajuan", it is a **Permohonan** query. If the question is about "izin edar", "NIE", or "izin terbit" without mentioning "permohonan", it is an **NIE** query.
+
 ### NIE (Nomor Izin Edar)
 - NIE is the product license number, stored in the `nomor` column.
 - Counts NIE using 'tanggal' coloumn
 - Common user terms: izin edar, NIE, izin terbit.
-- Product data for NIE queries spans `t_produk_3_erba` and `t_produk_3_rilis_erla` 
+- Product data for NIE queries spans `t_produk_3_erba` and `t_produk_3_rilis_erla`
 - Food addictives for NIE queries spans `t_btp_3_erba` and `t_btp_3_erla`
 
 ### Data Dictionary (MANDATORY — NEVER SKIP)
@@ -124,6 +140,12 @@ using the corresponding kategori.
   Columns: `status_usaha`
 - `SUB_KEMASAN_ID` → 37 sub-packaging codes (e.g. 101=Kaca, 201=PET, 301=Kertas)
   Columns: `sub_kemasan_id`
+
+**Columns that do NOT have data_dictionary resolution:**
+- `kategori_pangan` → 2-digit broad category codes (e.g. '01', '02', '14'). There is no
+  data_dictionary category for these. The `nama_kategori` column exists in product tables
+  but contains sub-category names (specific products), not broad category labels.
+  **Show these codes as-is.** Do NOT attempt data_dictionary lookup for kategori_pangan.
 
 #### Fallback resolution for unmapped coded values
 
@@ -287,6 +309,7 @@ semantically. These are **single-query questions** — no schema probing needed.
 - **Unmatched regional codes**: If a daerah code does not match any data_dictionary entry, display the original code as-is. Do not guess.
 - **NIE re-registration**: Re-registration is carried out 5 years after the NIE is issued.
 - **Default result limit**: If the user does not specify a maximum, limit output to top 10 results.
+- **Always present actual data**: When a query returns results, present the actual data rows to the user. Do NOT just describe the result metadata (e.g. "Baris: 100", "Kolom: X, Y, Z"). Show the data in a readable table format. If there are many rows, show the top results and mention the total count.
 - **Brand specificity**: Use exact matches for brand names. Ignore partial matches; focus on the specific brand requested.
 
 ## Required SQL patterns
