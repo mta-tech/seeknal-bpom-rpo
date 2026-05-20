@@ -23,38 +23,61 @@ and food additives (BTP). Users are BPOM analysts who ask questions about:
 - Product data for NIE queries spans `t_produk_3_erba` and `t_produk_3_rilis_erla` 
 - Food addictives for NIE queries spans `t_btp_3_erba` and `t_btp_3_erla`
 
-### Data Dictionary (MANDATORY)
+### Data Dictionary (MANDATORY — NEVER SKIP)
 - The `data_dictionary` table at `warehouse.public.data_dictionary` is the
   authoritative source for resolving all codes to human-readable labels.
-- **Before presenting any response containing numeric or coded values, the agent
-  MUST resolve them via data_dictionary.** Never show raw codes (e.g. skala
-  industri '1', '2', '3') without their labels.
+- **NEVER present raw numeric or coded values to the user.** Every code must be
+  replaced with its `deskripsi` label before showing the answer. This is
+  non-negotiable.
 - Table structure:
   - `sumber` — source scope (e.g. 'ERBA dan ERLA')
   - `kategori` — category name (e.g. 'SKALA_INDUSTRI dan SKALA_INDUSTRI_ID',
     'JENIS_PERMOHONAN', 'KATEGORI_DOKUMEN')
   - `kode` — the code value (e.g. '1')
   - `deskripsi` — the human-readable label (e.g. 'Mikro')
-- Resolution workflow:
-  1. If a SQL pair already includes a JOIN to data_dictionary, use its labels
-     directly (no extra query needed).
-  2. If a SQL pair or ad-hoc query returns coded values, execute a follow-up
-     query to resolve:
-     ```sql
-     SELECT kode, deskripsi
-     FROM warehouse.public.data_dictionary
-     WHERE kategori = '<relevant_category>'
-     ```
-  3. Replace all codes in the final answer with their `deskripsi` labels.
-- Known categories that always need resolution:
-  - `SKALA_INDUSTRI dan SKALA_INDUSTRI_ID` → 1=Mikro, 2=Kecil, 3=Menengah, 4=Besar
-  - `JENIS_PERMOHONAN` → 301=Baru, 302=Perubahan Mayor, 303=Perubahan Minor, 304=Daftar Ulang, 305=Baru Notifikasi
-  - `KATEGORI_DOKUMEN` → 301=Tinggi, 302=Menengah Tinggi, 303=Menengah Rendah, 304=Tinggi
-- For NULL or empty skala_industri values, label as **Importir**.
-- **Regional code format mismatch**: Product tables store regional codes as
-  integers (e.g. `7271`) but `data_dictionary.kode` uses decimal format
-  (e.g. `72.71`). When joining regional codes to data_dictionary, always
-  convert: `dd.kode = (daerah_pabrik::numeric / 100)::text`.
+
+#### Resolution workflow (MANDATORY after EVERY SQL pair execution)
+
+After executing any SQL pair, check the result columns against this table.
+If a column contains coded values, you MUST execute a follow-up query to
+data_dictionary and replace codes with labels BEFORE presenting the answer.
+
+| SQL pair | Column with codes | Data dictionary kategori | Special handling |
+|---|---|---|---|
+| `tren_btp_skala_industri` | `skala_industri_nama` (1,2,3,4,NULL) | `SKALA_INDUSTRI dan SKALA_INDUSTRI_ID` | NULL/empty → "Importir" |
+| `jumlah_izin_edar_skala_industri` | `SKALA_INDUSTRI_ID` (1,2,3,4) | `SKALA_INDUSTRI dan SKALA_INDUSTRI_ID` | NULL/empty → "Importir" |
+| `jumlah_izin_edar_skala_usaha` | `skala_industri_id` (1,2,3,4) | `SKALA_INDUSTRI dan SKALA_INDUSTRI_ID` | NULL/empty → "Importir" |
+| `jumlah_permohonan_per_jenis` | `jenis_permohonan` (301-305) | `JENIS_PERMOHONAN` | — |
+| `tren_izin_edar_tahun_daerah_pabrik` | `daerah_pabrik` (integer codes) | `DAERAH_TRADER, DAERAH_PABRIK, DAERAH_PRODUSEN, PROVINSI_ID, KOTAKAB_ID` | Convert: `(daerah_pabrik / 100)::text` to match kode format |
+| `produk_berdasarkan_nama_daerah_pabrik` | `daerah_pabrik` (integer codes) | `DAERAH_TRADER, DAERAH_PABRIK, DAERAH_PRODUSEN, PROVINSI_ID, KOTAKAB_ID` | Convert: `(daerah_pabrik / 100)::text` to match kode format |
+
+**SQL pairs that already resolve internally (no follow-up needed):**
+- `tren_amdk_skala_industri` — already JOINs data_dictionary
+
+**Follow-up query template:**
+```sql
+SELECT kode, deskripsi
+FROM warehouse.public.data_dictionary
+WHERE kategori = '<relevant_category>'
+ORDER BY kode
+```
+
+**For regional codes (daerah_pabrik), use this conversion:**
+Product tables store codes as integers (e.g. `7271`) but `data_dictionary.kode`
+uses decimal format (e.g. `72.71`). When resolving, apply:
+`kode = (daerah_pabrik::numeric / 100)::text`
+Example: 7271 / 100 = '72.71' which matches data_dictionary.kode.
+
+**For skala industri, handle edge cases:**
+- `NULL` or empty string or single space `' '` → label as **Importir**
+- `TRIM()` the code before matching to handle trailing spaces
+
+**Known categories for reference:**
+- `SKALA_INDUSTRI dan SKALA_INDUSTRI_ID` → 1=Mikro, 2=Kecil, 3=Menengah, 4=Besar
+- `JENIS_PERMOHONAN` → 301=Permohonan Baru, 302=Perubahan Mayor, 303=Perubahan Minor, 304=Daftar Ulang, 305=Baru Notifikasi
+- `KATEGORI_DOKUMEN` → 301=Tinggi, 302=Menengah Tinggi, 303=Menengah Rendah, 304=Tinggi
+- `STATUS_KOMITMEN` → 4=Disetujui, 7=Disetujui, 5=Dibatalkan
+- `DAERAH_TRADER, DAERAH_PABRIK, DAERAH_PRODUSEN, PROVINSI_ID, KOTAKAB_ID` → regional codes (needs /100 conversion)
 
 ### Permohonan
 - Counts permohonan using 'produk_id' coloumn
@@ -139,6 +162,12 @@ semantic similarity), the agent MUST execute the pair's SQL exactly as written.
 5. **Only generate ad-hoc SQL when no SQL pair matches.** If the question has
    no corresponding pair, the agent may write new SQL, but should follow the
    patterns and conventions established in existing pairs.
+6. **Always resolve coded values after execution.** After running a SQL pair,
+   check the result for any columns containing numeric codes (skala_industri,
+   jenis_permohonan, daerah_pabrik, kategori_dokumen, status_komitmen, etc.).
+   If coded values are found, run a follow-up query to `data_dictionary` to
+   resolve them to human-readable `deskripsi` labels before presenting the
+   answer. See the "Data Dictionary" section for the full mapping table.
 
 ## Source context workflow
 
