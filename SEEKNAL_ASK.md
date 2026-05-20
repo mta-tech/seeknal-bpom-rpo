@@ -48,8 +48,8 @@ data_dictionary and replace codes with labels BEFORE presenting the answer.
 | `jumlah_izin_edar_skala_industri` | `SKALA_INDUSTRI_ID` (1,2,3,4) | `SKALA_INDUSTRI dan SKALA_INDUSTRI_ID` | NULL/empty → "Importir" |
 | `jumlah_izin_edar_skala_usaha` | `skala_industri_id` (1,2,3,4) | `SKALA_INDUSTRI dan SKALA_INDUSTRI_ID` | NULL/empty → "Importir" |
 | `jumlah_permohonan_per_jenis` | `jenis_permohonan` (301-305) | `JENIS_PERMOHONAN` | — |
-| `tren_izin_edar_tahun_daerah_pabrik` | `daerah_pabrik` (integer codes) | `DAERAH_TRADER, DAERAH_PABRIK, DAERAH_PRODUSEN, PROVINSI_ID, KOTAKAB_ID` | Convert: `(daerah_pabrik / 100)::text` to match kode format |
-| `produk_berdasarkan_nama_daerah_pabrik` | `daerah_pabrik` (integer codes) | `DAERAH_TRADER, DAERAH_PABRIK, DAERAH_PRODUSEN, PROVINSI_ID, KOTAKAB_ID` | Convert: `(daerah_pabrik / 100)::text` to match kode format |
+| `tren_izin_edar_tahun_daerah_pabrik` | `daerah_pabrik` (text codes) | `DAERAH_TRADER, DAERAH_PABRIK, DAERAH_PRODUSEN, PROVINSI_ID, KOTAKAB_ID` | Convert: `ROUND(daerah_pabrik::numeric / 100, 2)::text` |
+| `produk_berdasarkan_nama_daerah_pabrik` | `daerah_pabrik` (text codes) | `DAERAH_TRADER, DAERAH_PABRIK, DAERAH_PRODUSEN, PROVINSI_ID, KOTAKAB_ID` | Convert: `ROUND(daerah_pabrik::numeric / 100, 2)::text` |
 
 **SQL pairs that already resolve internally (no follow-up needed):**
 - `tren_amdk_skala_industri` — already JOINs data_dictionary
@@ -63,10 +63,21 @@ ORDER BY kode
 ```
 
 **For regional codes (daerah_pabrik), use this conversion:**
-Product tables store codes as integers (e.g. `7271`) but `data_dictionary.kode`
-uses decimal format (e.g. `72.71`). When resolving, apply:
-`kode = (daerah_pabrik::numeric / 100)::text`
-Example: 7271 / 100 = '72.71' which matches data_dictionary.kode.
+The `daerah_pabrik` column is TEXT type (not integer). Product tables store codes
+as 4-digit strings (e.g. `'7271'`) but `data_dictionary.kode` uses decimal format
+(e.g. `'72.71'` — dot separator every 2 digits).
+
+**Correct conversion formula:**
+```sql
+ROUND(daerah_pabrik::numeric / 100, 2)::text
+```
+Do NOT use `(daerah_pabrik::numeric / 100)::text` — this produces trailing zeros
+(e.g. `'12.0900000000000000'`) which will NOT match `data_dictionary.kode` (e.g. `'12.09'`).
+
+**Edge cases to handle:**
+- String `'NULL'` → filter out with `WHERE daerah_pabrik IS NOT NULL AND daerah_pabrik != 'NULL'`
+- `'9999'` → test/placeholder code, exclude from results
+- If a code does not match any data_dictionary entry, display the original code as-is
 
 **For skala industri, handle edge cases:**
 - `NULL` or empty string or single space `' '` → label as **Importir**
@@ -86,7 +97,7 @@ using the corresponding kategori.
   Columns: `status_komitmen`
 - `DAERAH_TRADER, DAERAH_PABRIK, DAERAH_PRODUSEN, PROVINSI_ID, KOTAKAB_ID` → 512 regional codes (kabupaten/kota)
   Columns: `daerah_pabrik`, `daerah_trader`, `daerah_produsen`, `provinsi_id`, `kotakab_id`
-  Requires conversion: `kode = (column_value::numeric / 100)::text`
+  Requires conversion: `kode = ROUND(column_value::numeric / 100, 2)::text`, exclude `'NULL'` and `'9999'`
 - `BENTUK_SEDIAAN` → 101=Cair/Pasta, 102=Serbuk, 103=Bahan Penolong, 104=Gas, 105=Padat
   Columns: `bentuk_sediaan`
 - `JENIS_BTP` → 29 BTP type codes (e.g. 13=Pengkarbonasi, 40=Pengemulsi, 43=Penguat Rasa)
@@ -309,6 +320,17 @@ semantic similarity), the agent MUST execute the pair's SQL exactly as written.
    If coded values are found, run a follow-up query to `data_dictionary` to
    resolve them to human-readable `deskripsi` labels before presenting the
    answer. See the "Data Dictionary" section for the full mapping table.
+7. **NEVER describe how to write SQL — always EXECUTE it.** If the user asks a
+   data question, the agent MUST execute SQL and return actual results. Do NOT
+   respond with explanations of how the query could be written or what tables
+   could be used. Execute first, explain results after.
+8. **Break complex queries into steps.** If an ad-hoc query is too complex
+   (e.g. needs product filters + regional code conversion + data_dictionary
+   resolution), execute in stages:
+   - Step 1: Run the core data query (counts, filters, grouping).
+   - Step 2: Run a separate data_dictionary lookup for any coded columns.
+   - Step 3: Present the resolved results.
+   Do NOT try to build a single massive query that does everything at once.
 
 ## Source context workflow
 
