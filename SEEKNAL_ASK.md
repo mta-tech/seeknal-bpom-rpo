@@ -132,10 +132,44 @@ Example: 7271 / 100 = '72.71' which matches data_dictionary.kode.
 - For queries covering all products, UNION ERBA and ERLA tables.
 - For commitment-related queries, use only ERBA tables.
 
-## Knowledge Base
-- Before providing any responses, you are required to thoroughly read and reference the context provided in the file located at context/bpom_information.md. Use the technical definitions, database schemas, and project constraints defined there as the primary source of truth for all your answers.
+## Data Quality & Query Rules
 
-##
+### Data exclusions (apply to ALL queries)
+- **Year exclusion**: Exclude all data with year 1900 or 1970. Add filter:
+  `EXTRACT(YEAR FROM tanggal) NOT IN (1900, 1970)` or
+  `EXTRACT(YEAR FROM tanggal_bayar) NOT IN (1900, 1970)` as appropriate.
+- **Test accounts (ERBA)**: Exclude records where `trader_id IN (5, 17, 50, 85)`.
+- **Test accounts (ERLA)**: Exclude records where `trader_id = 3384`.
+
+### Scale vs Status (do not confuse)
+- **Skala industri / skala usaha** refers to `skala_industri_id` or `skala_industri`.
+- **Status usaha** refers strictly to the `status_usaha` column.
+- These are NOT interchangeable.
+
+### UMKM Classification
+- UMKM includes: Mikro (1), Kecil (2), Menengah (3).
+- Importir: any record where `skala_industri_id` or `skala_industri` is NULL or empty.
+
+### Commitment details for Medium-Low Risk (kategori_dokumen '303')
+- The `status_komitmen` column applies ONLY to products with `kategori_dokumen = '303'`.
+- Code `'9'` = Variation commitment.
+- Code `'1'` = Unevaluated / re-evaluation of commitment process (ERBA only).
+- Code `'5'` = Cancelled commitment.
+
+### Jenis Permohonan details
+- `302` (Perubahan Mayor) = changes in Composition.
+- `303` (Perubahan Minor) = administrative/document updates.
+
+### Makloon products (status_produksi '304')
+- For products with `status_produksi = '304'`, use columns:
+  `produsen_id`, `nama_produsen`, `alamat_produsen`, `daerah_produsen`, `negara_produsen`.
+
+### Query behavior
+- **SQL transparency**: If the user requests to see the query, display the SQL alongside the result.
+- **Unmatched regional codes**: If a daerah code does not match any data_dictionary entry, display the original code as-is. Do not guess.
+- **NIE re-registration**: Re-registration is carried out 5 years after the NIE is issued.
+- **Default result limit**: If the user does not specify a maximum, limit output to top 10 results.
+- **Brand specificity**: Use exact matches for brand names. Ignore partial matches; focus on the specific brand requested.
 
 ## Required SQL patterns
 
