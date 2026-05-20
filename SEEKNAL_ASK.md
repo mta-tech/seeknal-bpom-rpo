@@ -72,12 +72,74 @@ Example: 7271 / 100 = '72.71' which matches data_dictionary.kode.
 - `NULL` or empty string or single space `' '` → label as **Importir**
 - `TRIM()` the code before matching to handle trailing spaces
 
-**Known categories for reference:**
+**All data_dictionary categories (complete reference):**
+When ANY of these column names or values appear in query results, resolve them
+using the corresponding kategori.
+
 - `SKALA_INDUSTRI dan SKALA_INDUSTRI_ID` → 1=Mikro, 2=Kecil, 3=Menengah, 4=Besar
+  Columns: `skala_industri_id`, `skala_industri`
 - `JENIS_PERMOHONAN` → 301=Permohonan Baru, 302=Perubahan Mayor, 303=Perubahan Minor, 304=Daftar Ulang, 305=Baru Notifikasi
-- `KATEGORI_DOKUMEN` → 301=Tinggi, 302=Menengah Tinggi, 303=Menengah Rendah, 304=Tinggi
-- `STATUS_KOMITMEN` → 4=Disetujui, 7=Disetujui, 5=Dibatalkan
-- `DAERAH_TRADER, DAERAH_PABRIK, DAERAH_PRODUSEN, PROVINSI_ID, KOTAKAB_ID` → regional codes (needs /100 conversion)
+  Columns: `jenis_permohonan`
+- `KATEGORI_DOKUMEN` → 301=Tinggi, 302=Menengah Tinggi, 303=Menengah Rendah, 304=Tinggi Notifikasi
+  Columns: `kategori_dokumen`
+- `STATUS_KOMITMEN` → 0=Draft, 1=Proses Penilaian Kembali, 2=Verifikasi, 4=Disetujui, 5=Dibatalkan, 7=Disetujui Dengan Catatan, 8=Validasi Pembatalan, 9=Variasi Komitmen
+  Columns: `status_komitmen`
+- `DAERAH_TRADER, DAERAH_PABRIK, DAERAH_PRODUSEN, PROVINSI_ID, KOTAKAB_ID` → 512 regional codes (kabupaten/kota)
+  Columns: `daerah_pabrik`, `daerah_trader`, `daerah_produsen`, `provinsi_id`, `kotakab_id`
+  Requires conversion: `kode = (column_value::numeric / 100)::text`
+- `BENTUK_SEDIAAN` → 101=Cair/Pasta, 102=Serbuk, 103=Bahan Penolong, 104=Gas, 105=Padat
+  Columns: `bentuk_sediaan`
+- `JENIS_BTP` → 29 BTP type codes (e.g. 13=Pengkarbonasi, 40=Pengemulsi, 43=Penguat Rasa)
+  Columns: `jenis_btp`
+- `JENIS_DOKUMEN` → 000=Belum Dikategorikan
+  Columns: `jenis_dokumen`
+- `JENIS_PRODUK_BTP` → 301=Tunggal, 302=Campuran, 303=Perisa, 304=Bahan Penolong
+  Columns: `jenis_produk_btp`
+- `KEMASAN_ID` → 15 packaging codes (e.g. 1=Kaca/Keramik, 2=Plastik tunggal, 5=Logam)
+  Columns: `kemasan_id`
+- `KLASIFIKASI_ID` → 13 classification codes (e.g. 301=Makanan, 302=Minuman, 303=BTP)
+  Columns: `klasifikasi_id`
+- `KODE_KBLI` → 95 business activity codes
+  Columns: `kode_kbli`
+- `NEGARA_PABRIK dan NEGARA_PRODUSEN` → 102 country codes (e.g. AE=Uni Emirat Arab, CN=Tiongkok, ID=Indonesia)
+  Columns: `negara_pabrik`, `negara_produsen`
+- `PERUNTUKAN` → 0000=Pangan Umum, 0201=Pangan Peruntukan
+  Columns: `peruntukan`
+- `STATUS` → 89 status codes (e.g. 0999=Berlaku, 0906=Berlaku, 0099=Tidak Berlaku, 0000=Dihapus)
+  Columns: `status`
+- `STATUS_PRODUK` → 302=Impor, 306=Single MD Induk, 307=Single MD Anak
+  Columns: `status_produk`
+- `STATUS_USAHA` → 31=Produsen, 33=Importir
+  Columns: `status_usaha`
+- `SUB_KEMASAN_ID` → 37 sub-packaging codes (e.g. 101=Kaca, 201=PET, 301=Kertas)
+  Columns: `sub_kemasan_id`
+
+#### Fallback resolution for unmapped coded values
+
+If a query result contains coded values that are **NOT listed in the mapping table
+above**, do NOT show the raw codes to the user. Instead, follow these steps:
+
+1. **Discover the correct category** — run the `data_dictionary_categories` SQL pair
+   to list all available categories:
+   ```sql
+   SELECT DISTINCT kategori
+   FROM warehouse.public.data_dictionary
+   ORDER BY kategori
+   ```
+2. **Identify the matching category** — pick the category that semantically matches
+   the coded column (e.g. a column `status_usaha` likely maps to `STATUS_USAHA`).
+3. **Resolve the codes** — run the `data_dictionary_by_category` SQL pair with the
+   discovered category:
+   ```sql
+   SELECT kode, deskripsi
+   FROM warehouse.public.data_dictionary
+   WHERE kategori = '<discovered_category>'
+   ORDER BY kode
+   ```
+4. **Replace codes with labels** in the final answer.
+
+This fallback applies to ALL future SQL pairs, ad-hoc queries, and any new
+data_dictionary categories that have not yet been added to the mapping table.
 
 ### Permohonan
 - Counts permohonan using 'produk_id' coloumn
@@ -132,10 +194,44 @@ Example: 7271 / 100 = '72.71' which matches data_dictionary.kode.
 - For queries covering all products, UNION ERBA and ERLA tables.
 - For commitment-related queries, use only ERBA tables.
 
-## Knowledge Base
-- Before providing any responses, you are required to thoroughly read and reference the context provided in the file located at context/bpom_information.md. Use the technical definitions, database schemas, and project constraints defined there as the primary source of truth for all your answers.
+## Data Quality & Query Rules
 
-##
+### Data exclusions (apply to ALL queries)
+- **Year exclusion**: Exclude all data with year 1900 or 1970. Add filter:
+  `EXTRACT(YEAR FROM tanggal) NOT IN (1900, 1970)` or
+  `EXTRACT(YEAR FROM tanggal_bayar) NOT IN (1900, 1970)` as appropriate.
+- **Test accounts (ERBA)**: Exclude records where `trader_id IN (5, 17, 50, 85)`.
+- **Test accounts (ERLA)**: Exclude records where `trader_id = 3384`.
+
+### Scale vs Status (do not confuse)
+- **Skala industri / skala usaha** refers to `skala_industri_id` or `skala_industri`.
+- **Status usaha** refers strictly to the `status_usaha` column.
+- These are NOT interchangeable.
+
+### UMKM Classification
+- UMKM includes: Mikro (1), Kecil (2), Menengah (3).
+- Importir: any record where `skala_industri_id` or `skala_industri` is NULL or empty.
+
+### Commitment details for Medium-Low Risk (kategori_dokumen '303')
+- The `status_komitmen` column applies ONLY to products with `kategori_dokumen = '303'`.
+- Code `'9'` = Variation commitment.
+- Code `'1'` = Unevaluated / re-evaluation of commitment process (ERBA only).
+- Code `'5'` = Cancelled commitment.
+
+### Jenis Permohonan details
+- `302` (Perubahan Mayor) = changes in Composition.
+- `303` (Perubahan Minor) = administrative/document updates.
+
+### Makloon products (status_produksi '304')
+- For products with `status_produksi = '304'`, use columns:
+  `produsen_id`, `nama_produsen`, `alamat_produsen`, `daerah_produsen`, `negara_produsen`.
+
+### Query behavior
+- **SQL transparency**: If the user requests to see the query, display the SQL alongside the result.
+- **Unmatched regional codes**: If a daerah code does not match any data_dictionary entry, display the original code as-is. Do not guess.
+- **NIE re-registration**: Re-registration is carried out 5 years after the NIE is issued.
+- **Default result limit**: If the user does not specify a maximum, limit output to top 10 results.
+- **Brand specificity**: Use exact matches for brand names. Ignore partial matches; focus on the specific brand requested.
 
 ## Required SQL patterns
 
