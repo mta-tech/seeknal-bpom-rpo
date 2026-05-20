@@ -141,11 +141,56 @@ above**, do NOT show the raw codes to the user. Instead, follow these steps:
 This fallback applies to ALL future SQL pairs, ad-hoc queries, and any new
 data_dictionary categories that have not yet been added to the mapping table.
 
+### Direct data_dictionary lookups
+
+When the user asks a **simple reference question** (e.g. "apa saja bentuk peruntukan?",
+"apa saja status yang ada?", "berapa jenis BTP?", "apa saja kemasan?"), do NOT
+probe schemas or build complex ad-hoc queries. Instead, execute a single direct
+query to data_dictionary:
+
+```sql
+SELECT kode, deskripsi
+FROM warehouse.public.data_dictionary
+WHERE kategori = '<kategori>'
+ORDER BY kode
+```
+
+Common question-term to kategori mapping:
+
+| User asks about | Use kategori |
+|---|---|
+| bentuk sediaan, bentuk produk | `BENTUK_SEDIAAN` |
+| peruntukan | `PERUNTUKAN` |
+| status, status izin | `STATUS` |
+| status komitmen | `STATUS_KOMITMEN` |
+| status usaha | `STATUS_USAHA` |
+| status produk | `STATUS_PRODUK` |
+| skala industri, skala usaha | `SKALA_INDUSTRI dan SKALA_INDUSTRI_ID` |
+| jenis permohonan | `JENIS_PERMOHONAN` |
+| jenis BTP, jenis bahan tambahan pangan | `JENIS_BTP` |
+| jenis produk BTP | `JENIS_PRODUK_BTP` |
+| kategori dokumen, kategori risiko | `KATEGORI_DOKUMEN` |
+| kemasan | `KEMASAN_ID` |
+| sub kemasan | `SUB_KEMASAN_ID` |
+| klasifikasi | `KLASIFIKASI_ID` |
+| negara pabrik, negara produsen | `NEGARA_PABRIK dan NEGARA_PRODUSEN` |
+| daerah, kabupaten, kota, provinsi | `DAERAH_TRADER, DAERAH_PABRIK, DAERAH_PRODUSEN, PROVINSI_ID, KOTAKAB_ID` |
+| KBLI, kode KBLI | `KODE_KBLI` |
+| jenis dokumen | `JENIS_DOKUMEN` |
+| semua kategori, daftar kategori | Run `SELECT DISTINCT kategori FROM warehouse.public.data_dictionary ORDER BY kategori` |
+
+If the user's term is not listed above, match it to the closest kategori name
+semantically. These are **single-query questions** — no schema probing needed.
+
 ### Permohonan
 - Counts permohonan using 'produk_id' coloumn
 - Common user terms: permohonan, permohonan izin edar, jumlah permohonan, permohonan registrasi, registrasi
-- Counts permohonan using 'tanggal_bayar' coloumn
-- Product data for permohonan queries spans `t_produk_3_erba` and `t_produk_3_rilis_erla` 
+- **Tanggal column for permohonan: ALWAYS use `tanggal_bayar` (payment date). NEVER use `tanggal_aju` (submission date).**
+  - `tanggal_bayar` = tanggal pembayaran, used for counting permohonan (when the application is officially registered/paid).
+  - `tanggal_aju` = tanggal pengajuan, submission date only. Do NOT use this for permohonan counts.
+  - `tanggal` = tanggal terbit izin edar (NIE issue date), used for NIE counts only.
+  - `tanggal_berkas`, `tanggal_diambil`, `tanggal_exp`, etc. = other process dates, not for counting.
+- Product data for permohonan queries spans `t_produk_3_erba` and `t_produk_3_rilis_erla`
 - Food addictives for NIE queries spans `t_btp_3_erba` and `t_btp_3_erla`
 
 ### Risk Categories (Kategori Dokumen)
